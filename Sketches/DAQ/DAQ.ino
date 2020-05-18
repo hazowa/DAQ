@@ -99,7 +99,7 @@ void setup()
  *  ADC_0db: sets an attenuation of 3.6 (1V input = ADC reading of 3959) = 0,256mV resolution. Max voltage: 1.049V
 */
   analogSetAttenuation(ADC_11db);
-  adc1_config_width(ADC_WIDTH_BIT_9);
+  ///adc1_config_width(ADC_WIDTH_BIT_9);
   
 
   // initiate analog ports as input
