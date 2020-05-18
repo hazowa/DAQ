@@ -1,4 +1,5 @@
 /* SINGLE Core buffered_multiple_analog_in_LCD.ino
+ *  From version V.020 a new LCD library (hd44780 library package, https://github.com/duinoWitchery/hd44780)
  *  The second core is for future use (circular buffer, signal level, programmable signal generator)
 
    General description buffered analog input
@@ -26,8 +27,11 @@
       Python example: buffered_analog_in_User_input_V0.5.py or later.
 */
 
-#include <LiquidCrystal_I2C.h>      // author: Frank de Brabander
 #include "adc.h"                    // source: https://github.com/espressif/arduino-esp32/blob/master/tools/sdk/include/driver/driver/adc.h
+#include <Wire.h>
+#include <hd44780.h>                       // main hd44780 header, https://github.com/duinoWitchery/hd44780
+#include <hd44780ioClass/hd44780_I2Cexp.h> // i2c expander i/o class header
+
 
 #define baudrate 230400             // related to quality of the USB cable, performance and chipset of the connected pc.  
 
@@ -95,6 +99,8 @@ void setup()
  *  ADC_0db: sets an attenuation of 3.6 (1V input = ADC reading of 3959) = 0,256mV resolution. Max voltage: 1.049V
 */
   analogSetAttenuation(ADC_11db);
+  adc1_config_width(ADC_WIDTH_BIT_9);
+  
 
   // initiate analog ports as input
   for (int s = 0; s < port_max; s++) pinMode(ports[analog_ports], INPUT);
