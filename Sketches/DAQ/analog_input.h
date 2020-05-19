@@ -20,7 +20,7 @@ void get_samples()
   unsigned long temp_time = micros();                         // LCD -> calcultion of the time per sample
   do
   {
-    time_target = micros() + s_delay_micro;                   // take the next shot at this timestamp + delay
+    time_target = micros() + s_delay_micro;                   // take the next shot at this time
     do
     {
       s_array[ii++] = analogRead(ports[port_index++]) + port_num;  // Save data: sample value stored in bit 0-11, portnumber in bit 12-14
@@ -32,6 +32,6 @@ void get_samples()
     port_num = 0b0000000000000000;                            // reset port number
   } while (ii < s_nbr);
 
-  // if anabled, show on LCD the actual time per sample in microsecond
+  // if LCD anabled, show on LCD the actual sample rate
   if (LCD) LCD_show_actual(temp_time);
 }

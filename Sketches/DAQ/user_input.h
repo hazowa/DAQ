@@ -5,6 +5,8 @@ void show_parsed_input()
 {
   if (debug)
   {
+    Serial.println();
+    Serial.print("Category:           "); Serial.println(cat);
     Serial.print("Raw input:          "); Serial.println(buf);
     Serial.print("Number of AD ports  "); Serial.println(analog_ports);
     Serial.print("Number of samples:  "); Serial.println(s_nbr);
@@ -60,18 +62,29 @@ bool serial_input()
   else return false;
 }
 
-
-/*
-     assign serial input parameters to variables
-*/
-void parse_input()
+// filter category from user input
+void fill_cat()
 {
-  sscanf(buf, "%d %d %d %d %d %d", &analog_ports, &s_nbr, &s_rate, &trigger, &trigger_event, &debounce); // space delimited
-  //s_nbr = s_nbr * analog_ports;                     // total number of samples = the number of ports x the number of samples per port
+  // fill category var
+  sscanf(buf, "%s ", cat);
+}
+/*
+ * assign serial input parameters to variables
+*/
+void ADC_parse()
+{
+  sscanf(buf, "%s %d %d %d %d %d %d", cat, &analog_ports, &s_nbr, &s_rate, &trigger, &trigger_event, &debounce); // space delimited
 }
 
+void TEXT_parse()
+{
+  sscanf(buf, "%s %s %d %d", cat, TEXT_text, &TEXT_row, &TEXT_col); // 
+}
+
+
+
 /*
-     Prevent that parameters get out of range. Maximum values depent on hardware.
+     Prevent that critical parameters get out of range. Maximum values depent on hardware.
      Notice 'leaving nnnnnn bytes for local variables' after compiling for available mem space
      (every sample = 2 bytes)
 */

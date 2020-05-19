@@ -1,3 +1,18 @@
+// trigger on/off and event
+int trigger_port = 27;              // port 27 on esp32 defined as trigger port
+int trigger = 0;                    // when '1' wait for event on port 27 to start conversion, '0' ignore
+#define Low 0                       // 0 = Low (trigger when pin is LOW)
+#define High 1                      // 1 = High (trigger when pin is HIGH)
+#define Change 2                    // 2 = Change ( trigger when the pin changes value from LOW to HIGH or HIGH to LOW)
+#define Rising 3                    // 3 = Rising (trigger when the pin goes from LOW to HIGH)
+#define Falling 4                   // 4 = Falling (trigger when the pin goes from HIGH to LOW)
+#define Ignore 99                   // 99 = Ignore trigger
+int trigger_event = Ignore;         // default trigger level/edge is low. See setup(), if pullup or pulldown resistor is active
+unsigned int debounce = 100;        // Time in microseconds a level must be stable to prevent jitter
+
+
+
+
 /*
    Wait till port is stable during al least the specified debounce time (in microsec)
 */

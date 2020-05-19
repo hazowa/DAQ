@@ -1,11 +1,18 @@
 // define LCD
-int totalColumns = 20;
-int totalRows = 4;
-LiquidCrystal_I2C lcd(LCD_address, totalColumns, totalRows);
+hd44780_I2Cexp lcd; // declare lcd object: auto locate & auto config expander chip
+// LCD geometry
+const int LCD_COLS = 20;
+const int LCD_ROWS = 4;
+
+
+
+//LiquidCrystal_I2C lcd(LCD_address, totalColumns, totalRows);
 bool LCD_level_redraw = true;     // Only once rebuild level indicator 
 
 int LCD_level_max[9];             // save the previous maximum value of the level measurement per port
 int LCD_level_min[9];             // save the previous minimum value of the level measurement per port
+int prev_trigger;                 // remember the previous trigger level
+
 unsigned long LCD_level_decay_time = 1000;// (ms) decrease the level every 'LCD_level_decay_time' with 'LCD_level_decay'
 unsigned long LCD_level_time;     // remember when the last substration took place
 unsigned long LCD_level_decay = 1;// the number to decrease every 'LCD_level_decay_time'
@@ -23,7 +30,7 @@ const int Segments = 2;
 int Segment_high = 1;
 int Segment_low  = 0;
 
- byte ElementLowHigh[Level_min][Level_max][Segments] =
+uint8_t ElementLowHigh[Level_min][Level_max][Segments] =
 {
   {{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32}},
   {{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32},{ 1,32}},
@@ -43,33 +50,16 @@ int Segment_low  = 0;
   {{32, 3},{ 1, 3},{95, 3},{95, 3},{45, 3},{45, 3},{ 3, 3},{ 3, 3},{32, 3},{32, 7},{32, 7},{32, 4},{32, 5},{32, 3},{32, 3},{32, 3}}
 };
 
-byte ch1[8] = {B00000, B00000, B00000, B00000, B00000, B00000, B00000, B11111};
-byte ch2[8] = {B00000, B11111, B00000, B00000, B00000, B00000, B00000, B00000};
-byte ch3[8] = {B11111, B00000, B00000, B00000, B00000, B00000, B00000, B00000};
-byte ch4[8] = {B00000, B11111, B00000, B00000, B00000, B00000, B11111, B00000};
-byte ch5[8] = {B00000, B11111, B00000, B00000, B11111, B00000, B00000, B00000};
-byte ch6[8] = {B00000, B00000, B00000, B11111, B00000, B00000, B11111, B00000};
-byte ch7[8] = {B11111, B00000, B00000, B00000, B00000, B00000, B00000, B11111};
-byte ch8[8] = {B00000, B00000, B00000, B11111, B00000, B00000, B00000, B11111};
+
+uint8_t ch1[8] = {B00000, B00000, B00000, B00000, B00000, B00000, B00000, B11111};
+uint8_t ch2[8] = {B00000, B11111, B00000, B00000, B00000, B00000, B00000, B00000};
+uint8_t ch3[8] = {B11111, B00000, B00000, B00000, B00000, B00000, B00000, B00000};
+uint8_t ch4[8] = {B00000, B11111, B00000, B00000, B00000, B00000, B11111, B00000};
+uint8_t ch5[8] = {B00000, B11111, B00000, B00000, B11111, B00000, B00000, B00000};
+uint8_t ch6[8] = {B00000, B00000, B00000, B11111, B00000, B00000, B11111, B00000};
+uint8_t ch7[8] = {B11111, B00000, B00000, B00000, B00000, B00000, B00000, B11111};
+uint8_t ch8[8] = {B00000, B00000, B00000, B11111, B00000, B00000, B00000, B11111};
 // ---------------------------------------------------------------------------------------------
-
-
-/*
- * For testing the LCD level meter, call this function, not ready for use with array ElementLowHigh
- */
-void LCD_meter_test(int strt_column, int strt_row)
-{
-  for (int r = 1; r <= 8; r++)
-  {
-    for (int c = 0; c < 9; c++)
-    {
-      lcd.setCursor(strt_column + c, strt_row);
-      lcd.write(char(r));
-      delay(5);
-    }
-  }
-}
-
 
 /*
  * initiate the LCD module, create the special level meter characters and say something to the world
@@ -77,7 +67,13 @@ void LCD_meter_test(int strt_column, int strt_row)
 void LCD_initiate()
 {
   // initiate LCD
-  lcd.init();
+  int status = lcd.begin(LCD_COLS, LCD_ROWS);
+  if(status) // non zero status means it was unsuccesful
+  {
+    // hd44780 has a fatalError() routine that blinks an led if possible
+    // begin() failed so blink error code using the onboard LED if possible
+    hd44780::fatalError(status); // does not return
+  }
 
   // Load LCD panel with new characters (max 8) 
   lcd.createChar(1, ch1);
@@ -98,33 +94,34 @@ void LCD_initiate()
   lcd.setCursor(3, 1);
   lcd.print("Arduino/Python");
 
-  lcd.setCursor(0, 2);
-  lcd.print("8xADC + 1xTriggerprt");
+  lcd.setCursor(1, 2);
+  lcd.print("8xADC + 1xTrigger");
   
   lcd.setCursor(0, 3);
   lcd.print("Baudrate: "); lcd.print(baudrate);
 }
-
-//unsigned int LCD_temp_level[8];         // save the previous value of the level measurement
-//unsigned int LCD_level_decay_time = 100;// decrease the level everey 'LCD_level_decay_time' with 'LCD_level_decay'
-//unsigned int LCD_level_decay = 1;       // the number to decrease every 'LCD_level_decay_time'
 
 /*
  * child of LCD_level, calculate the levels to characters and show the levels on LCD
  */
 void LCD_show_level(int port, int level, int col, int row)
 { 
+  int temp_max = LCD_level_max[port];             // save te previous value to prevent unnecessary write to LCD
+  int temp_min = LCD_level_min[port];
+  
   // show level for this port on column 'col'
   col = col + port;
 
   // port 8 is the trigger port
-  if (port == 8)
+  if ((port == 8) && (prev_trigger != level))
   {
+    // update display when changed
     lcd.setCursor(col, row);
     lcd.write(char(ElementLowHigh[level][level][Segment_high]));  
     
     lcd.setCursor(col, row+1);
     lcd.write(char(ElementLowHigh[level][level][Segment_low]));      
+    prev_trigger = level;
   } 
   else //port 0-7 is the analoge input
   {
@@ -133,7 +130,8 @@ void LCD_show_level(int port, int level, int col, int row)
     level = map(level, 0, 4095 , 0 , 15);
     LCD_level_max[port] = max(level, LCD_level_max[port]);
     LCD_level_min[port] = min(level, LCD_level_min[port]);  
-  
+
+
   // After 'LCD_level_decay_time' substract 'LCD_level_decay' from 'max' and add 'LCD_level_decay' to 'min'
   // The effect is that when the input value decreases the max-value will follow. When the AC component decreases
   // the difference between 'min' and 'max' will decrease.
@@ -150,11 +148,18 @@ void LCD_show_level(int port, int level, int col, int row)
     }
   
     // use the table 'ElementLowHigh' as a reference to turn on the right characters for the upper and lower segment.
-    lcd.setCursor(col, row);
-    lcd.write(char(ElementLowHigh[LCD_level_max[port]][LCD_level_min[port]][Segment_high]));  
-    
-    lcd.setCursor(col, row+1);
-    lcd.write(char(ElementLowHigh[LCD_level_max[port]][LCD_level_min[port]][Segment_low]));  
+    // show only when changed
+    if (temp_max != LCD_level_max[port])
+    {
+      lcd.setCursor(col, row);
+      lcd.write(char(ElementLowHigh[LCD_level_max[port]][LCD_level_min[port]][Segment_high])); 
+    }
+ 
+    if (temp_min != LCD_level_min[port])
+    {
+      lcd.setCursor(col, row+1);
+      lcd.write(char(ElementLowHigh[LCD_level_max[port]][LCD_level_min[port]][Segment_low]));  
+    }
   }
 }
 
@@ -176,7 +181,7 @@ void LCD_level(int col, int row)
                
     lcd.setCursor(col, row++);
     lcd.print("12345678T");   
-    LCD_level_redraw = false;                       //rebuild LCD level indicator only ones
+    LCD_level_redraw = false;                     //rebuild LCD level indicator only ones
   }
   else row = row + 2;
 

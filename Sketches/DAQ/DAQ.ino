@@ -54,6 +54,8 @@ const int input_buf_size = 30;      // max. expected characters from serial inpu
 char buf[input_buf_size];           // serial input buffer
 
 // these vars will be filled with parsed input data
+char cat[5];                        // category.  After "ADC" the AD conversion parameters will follow
+                                    //            After "ATT" the sensitivity of the inputports will follow etc. (See 'User_input.h)
 int analog_ports = 1;               // number of analog ports, default = 1
 int port_max = 8;                   // maximum number of analog ports
 unsigned int s_rate;                // nr of samples/sec
@@ -61,20 +63,27 @@ unsigned int s_nbr;                 // number of samples in total
 // crosstable GPIO port number -> analog input 0 - 7
 const int ports[] = {36, 39, 34, 35, 32, 33, 25, 26}; // define portnumbers for the analog ports
 
-// trigger on/off and event
-int trigger_port = 27;              // port 27 on esp32 defined as trigger port
-int trigger = 0;                    // when '1' wait for event on port 27 to start conversion, '0' ignore
-#define Low 0                       // 0 = Low (trigger when pin is LOW)
-#define High 1                      // 1 = High (trigger when pin is HIGH)
-#define Change 2                    // 2 = Change ( trigger when the pin changes value from LOW to HIGH or HIGH to LOW)
-#define Rising 3                    // 3 = Rising (trigger when the pin goes from LOW to HIGH)
-#define Falling 4                   // 4 = Falling (trigger when the pin goes from HIGH to LOW)
-#define Ignore 99                   // 99 = Ignore trigger
-int trigger_event = Ignore;         // default trigger level/edge is low. See setup(), if pullup or pulldown resistor is active
-unsigned int debounce = 100;        // Time in microseconds a level must be stable to prevent jitter
+//// trigger on/off and event
+//int trigger_port = 27;              // port 27 on esp32 defined as trigger port
+//int trigger = 0;                    // when '1' wait for event on port 27 to start conversion, '0' ignore
+//#define Low 0                       // 0 = Low (trigger when pin is LOW)
+//#define High 1                      // 1 = High (trigger when pin is HIGH)
+//#define Change 2                    // 2 = Change ( trigger when the pin changes value from LOW to HIGH or HIGH to LOW)
+//#define Rising 3                    // 3 = Rising (trigger when the pin goes from LOW to HIGH)
+//#define Falling 4                   // 4 = Falling (trigger when the pin goes from HIGH to LOW)
+//#define Ignore 99                   // 99 = Ignore trigger
+//int trigger_event = Ignore;         // default trigger level/edge is low. See setup(), if pullup or pulldown resistor is active
+//unsigned int debounce = 100;        // Time in microseconds a level must be stable to prevent jitter
 
 // define on board LED port
 const int LED = 2;                  // LED port, off during sampling, blinks during transfering serial data
+
+// Used for category text, show user text on display.
+int  TEXT_row;
+int  TEXT_col;
+char TEXT_text[20];
+
+
 
 /*
  * NOTE:
@@ -82,11 +91,16 @@ const int LED = 2;                  // LED port, off during sampling, blinks dur
  * - the include files must be defined before the function call in the main sketch
  * - inside the include files, plave the called function above the calling function
  */
+#include"trigger.h"                 // All functions related to external trigger signal input
 #include "LCD.h"                    // LCD settings and LCD related functions
 #include "analog_input.h"           // All function relates toe AD conversion
 #include "sample_output.h"          // All functions related to stream buffer to connected computer
 #include "user_input.h"             // All functions related to user input
-#include"trigger.h"                 // All functions related to external trigger signal input
+
+#include "cat_ADC.h"                // Do ADC conversion after parsing user input
+#include "cat_LEVEL.h"              // Show level if user wishes
+#include "cat_TEXT.h"               // Show user text on display
+
 
 void setup()
 {
@@ -120,16 +134,6 @@ void setup()
     lcd.clear();
   }
                                   
-  if (debug)
-  {
-    Serial.println();
-    Serial.println(" ---------------------------------------------------------------------------------------------------");
-    Serial.println("|Buffered ADC parameters:                                                                           |");
-    Serial.println("|Number of analog inputs, number of samples, sample rate, trigger (OFF=0, ON=1), trigger event (0-3)|");
-    Serial.println("|All separated by spaces.                                                                           |");
-    Serial.println("|(To prevent this message, set the boolean variable 'debug' to 'false')                             |");
-    Serial.println(" ---------------------------------------------------------------------------------------------------");
-  }
   if (LCD) LCD_waiting_for_input(0,0);  // show some text on the LCD display
 }
 
@@ -138,26 +142,18 @@ void loop()
   // if input available start processing, else keep waiting for serial input
   if (serial_input())           // result in buf[]
   {
-    parse_input();              // results from buf[] to analogInPin, s_rate and s_nbr;
-    check_parsed_input();       // prevent overflow
-    show_parsed_input();        // in case debug is true, show input values on console
-    if (LCD) LCD_show_parsed_input();// in case LCD is true, show input values on LCD display
-
-    if (trigger == 1) TriggerEvent(trigger_port, trigger_event, debounce);
-
-    digitalWrite(LED, LOW);     // to indicate sampling has started, dim LED
-    get_samples();              // get analog samples, parameters in
-    digitalWrite(LED, HIGH);    // to indicate sampling has stopped, turn on LED
-
-    dump_sample_array();        // return samples to Python serial or console
+    fill_cat();                 // first parse the category from input
+    if (strcmp(cat, "ADC") == 0)   cat_ADC();
+    if (strcmp(cat, "LEVEL") == 0) cat_LEVEL();    
+    if (strcmp(cat, "TEXT") == 0)  cat_TEXT();   
     if (LCD) LCD_level_redraw = true;  //rebuild LCD level indicator
   }
   else 
   {
+    // show input level analog ports and trigger, as long as there is no user input. 
     if (LCD)
     { 
-      LCD_level(11, 0);       // show input levelanalog portsand trigger, strats at parameter: col, row 
-
+      LCD_level(11, 0);       // show levels on display starting: col, row 
     }
   }
 }
