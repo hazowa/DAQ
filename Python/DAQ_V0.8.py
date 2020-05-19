@@ -1,14 +1,19 @@
-# quick and dirty example to import analog-input data from Arduino
+# quick and dirty example to import analog-input data from Arduino based DAQ
 #
-# Connect Arduino through USB and check in computermanagement which COM-port is in use
+#  Two categories have been implemented so far:
+#  - ADC + parameters for digitizing analog signals
+#  -TEXT + parameters for showing text on the optional LCD display 
+#
+# Connect Arduino through USB and check in your pc computermanagement which COM-port is in use
 # 
 
 import serial
 import time
 import matplotlib.pyplot as plt
 
-com_port = 'COM8:'      # check in pc's computer management which com: port is in use
+com_port = 'COM8:'      # check in pc's computer management which COM-port is in use
 baudrate = 230400       # Communication speed: Arduino and Spider should have the same value
+                        # The DAQ shows the baudrate for a few seconds when powered
 
 #default values AD conversion
 category = 'ADC'        # default category
@@ -38,6 +43,18 @@ event_min = 0           # minimum and maximum number for the events ('see trigge
 event_max = 4
 debounce_min = 0        # minimum and maximum value for debounce timing in microsec
 debounce_max = 10000
+
+
+
+# prepare parameter data and send to serial (ESP32) [bij gelegenheid checken]
+def ser_write_param(parameter):
+    parameter = parameter.encode('utf-8')           # Unicode Transformation Format, 8bits
+    cr = 13
+    lf = 10
+    parameter = parameter + cr.to_bytes(1,'big')    # end the string with CR Line Feed
+    parameter = parameter + lf.to_bytes(1,'big')
+    ser.write(parameter)                            # send parameters to Arduino
+
 
 ##############################################
 
@@ -99,13 +116,9 @@ def user_input(c, p, i, s, t, te, h):
 
     print()
     print("Parameters send to DAQ: " + param)
-
-    param = param.encode('utf-8')           # Unicode Transformation Format, 8bits
-    cr = 13
-    lf = 10
-    param = param + cr.to_bytes(1,'big')    # end the string with CR Line Feed
-    param = param + lf.to_bytes(1,'big')
-    ser.write(param)                        # send parameters to Arduino
+    
+    # write parameters to serial
+    ser_write_param(param)
 
     return(i)                               # return the the total number of samples for all analog ports together
 
@@ -119,15 +132,21 @@ ser = serial.Serial(com_port, baudrate)     # initiate the serial port
 time.sleep(1.5)                             # 
 
 # first reading after power on Arduino can give garbage, so flush
-#ser.write(b"34 1 20000 \r\n")
-#temp = ser.readline()
 ser.flushInput()                            # zou in versie 3 zijn vervangen door 'reset_input_buffer()'
 
 print("\nDemo Python/Arduino (ESP32) analog input with transmit buffer")
 
-# send parameters to Arduino: the number of analog ports, number of samples, samples per second, wait for trigger, event and debounce time
+# Say "Hello" on the DAQ screen  (Category = TEXT text = __Hello__  column = 0  row = 0) 
+category = 'TEXT'
+ser_write_param(category + " " + "__Hello__ 0 0")
+ser_write_param(category + " " + "___from__ 0 1")
+ser_write_param(category + " " + "_Python__ 0 2")
+
+
+# Ask user for and send parameters to Arduino: the category, the number of analog ports, number of samples, samples per second, wait for trigger, event and debounce time
+category = 'ADC'
 n_samples = user_input(category, ports, n_samples, samples_s, trigger, trigger_edge, debounce) # return the total number of samples 
-n_samples_int = int(n_samples)
+
 
 print("\nWaiting for AD conversion and serial sample data transport (" + n_samples + " samples in total) .....\n")
 
@@ -136,6 +155,7 @@ print("\nWaiting for AD conversion and serial sample data transport (" + n_sampl
 # read this serial data until all bytes (n_samples_int x 2) are received
 
 # Store the multiplexed sample data, Arduinono sends a stream alternately MSB and LSB
+n_samples_int = int(n_samples)              # 
 y_temp = []                                 # store the analog values in this list
 y_temp = ser.read(size = n_samples_int * 2) # 2 bytes unsigned integer per sample, so read twice the number of samples
 ser.close()                                 # serial data received, close serial port
