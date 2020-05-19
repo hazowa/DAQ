@@ -78,7 +78,7 @@ void ADC_parse()
 
 void TEXT_parse()
 {
-  sscanf(buf, "%s %s %d %d", cat, TEXT_text, &TEXT_row, &TEXT_col); // 
+  sscanf(buf, "%s %s %d %d", cat, TEXT_text, &TEXT_col, &TEXT_row); // 
 }
 
 
