@@ -142,6 +142,15 @@ ser_write_param(category + " " + "__Hello__ 0 0")
 ser_write_param(category + " " + "___from__ 0 1")
 ser_write_param(category + " " + "_Python__ 0 2")
 
+# Not yet implemented. Python composes a signal in a buffer and send it to DAQ
+#category = 'DAC'
+#ser_write_param(category)
+
+# Not yet implemented settings for the analog input attenuators
+#category = 'ATT'
+#ser_write_param(category)
+
+
 
 # Ask user for and send parameters to Arduino: the category, the number of analog ports, number of samples, samples per second, wait for trigger, event and debounce time
 category = 'ADC'
