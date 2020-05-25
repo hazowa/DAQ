@@ -1,8 +1,9 @@
-# quick and dirty example to import analog-input data from Arduino based DAQ
+# quick and dirty example to import analog-input data from ESP32 based DAQ
 #
 #  Two categories have been implemented so far:
 #  - ADC + parameters for digitizing analog signals
 #  -TEXT + parameters for showing text on the optional LCD display 
+#   ATTenuation and DAC are in preparation
 #
 # Connect Arduino through USB and check in your pc computermanagement which COM-port is in use
 # 
@@ -11,13 +12,13 @@ import serial
 import time
 import matplotlib.pyplot as plt
 
-com_port = 'COM8:'      # check in pc's computer management which COM-port is in use
-baudrate = 230400       # Communication speed: Arduino and Spider should have the same value
+com_port = 'COM8:'      # check in pc's computer management which COM-port is assigned to the ESP32
+baudrate = 230400       # Communication speed: Arduino and Spider must have the same value
                         # The DAQ shows the baudrate for a few seconds when powered
 
 #default values AD conversion
 category = 'ADC'        # default category
-ports = '2'             # default number of analog input ports in char
+ports = '2'             # default number of analog input ports
 ports_int = int(ports)  # the integer variant
 n_samples =   '1000'    # default number of samples per analog port
 samples_s =  '10000'    # default sample rate per port
@@ -136,7 +137,7 @@ ser.flushInput()                            # zou in versie 3 zijn vervangen doo
 
 print("\nDemo Python/Arduino (ESP32) analog input with transmit buffer")
 
-# Say "Hello" on the DAQ screen  (Category = TEXT text = __Hello__  column = 0  row = 0) 
+# Say "Hello" on the DAQ screen  (Category = TEXT column = 0  row = 0 text = __Hello__  ) 
 category = 'TEXT'
 ser_write_param(category + " " + "__Hello__ 0 0")
 ser_write_param(category + " " + "___from__ 0 1")
@@ -152,7 +153,8 @@ ser_write_param(category + " " + "_Python__ 0 2")
 
 
 
-# Ask user for and send parameters to Arduino: the category, the number of analog ports, number of samples, samples per second, wait for trigger, event and debounce time
+# Ask user for parameters, check tje input and send to DAQ: 
+# category, the number of analog ports, number of samples, samples per second, wait for trigger, event and debounce time
 category = 'ADC'
 n_samples = user_input(category, ports, n_samples, samples_s, trigger, trigger_edge, debounce) # return the total number of samples 
 
@@ -164,7 +166,7 @@ print("\nWaiting for AD conversion and serial sample data transport (" + n_sampl
 # read this serial data until all bytes (n_samples_int x 2) are received
 
 # Store the multiplexed sample data, Arduinono sends a stream alternately MSB and LSB
-n_samples_int = int(n_samples)              # 
+n_samples_int = int(n_samples)              # convert the number of samples to integer
 y_temp = []                                 # store the analog values in this list
 y_temp = ser.read(size = n_samples_int * 2) # 2 bytes unsigned integer per sample, so read twice the number of samples
 ser.close()                                 # serial data received, close serial port
@@ -173,7 +175,7 @@ print("\nData received (" + str(len(y_temp)) + " bytes), preparing plot....")
 
 # each sample consists of two bytes = 16 bits. 
 # -     The 12 LSB contain the sample values
-# -     The 4 MSB  contain the de-multiplex code for the port number
+# -     The the next three bits contain the de-multiplex code for the port number, the MSB is not in use
 # |        MSB        ||      LSB         |
 # | 7 | 6 5 4|3 2 1 0 ||  7 6 5 4 3 2 1 0 |
 # | X |PORTNR|      SAMPLE VALUES         |  
@@ -202,6 +204,7 @@ while (n < ports_int):
     plt.plot(x, val_array[n], linewidth=2.0, )
     n = n + 1
 
+# prepare the label text
 samples_channel = n_samples_int / ports_int
 total_samples_time = samples_channel/int(samples_s)
 
@@ -210,6 +213,3 @@ plt.ylabel('Arduino analog-in (0 - 4095)')
 plt.title('Demo Arduino Analog-in Graph')
 plt.grid(True)
 plt.show()
-
-
-# close serial port
