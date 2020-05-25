@@ -1,26 +1,53 @@
-/* SINGLE Core buffered_multiple_analog_in_LCD.ino
+/* SINGLE Core buffered_multiple_analog_in_LCD.ino (the second core is for future usage ;-)
  *  From version V.020 a new LCD library (hd44780 library package, https://github.com/duinoWitchery/hd44780)
  *  The second core is for future use (circular buffer, signal level, programmable signal generator)
 
    General description buffered analog input
    Purpose:
-    -read a burst of data from 1-8 of the analog input ports
+    -read a burst of data from 1-8 of the analog input ports. Optional: wait for trigger.
     -collect the data in a buffer
     -when ready collecting data, send the data through the serial port to a connected console/device
 
    Communication parameters:
-    -Serial port, 230400 baudrate
-    -[number of ports] [space] [number of samples] [space] [samples per second] [trigger on/off] [trigger event] [debounce time]
-    -As an example, console input:  4 10000 2000 1 2 100 and Enter
+    -Serial port, baudrate: 230400
+
+    ADC parameters:
+    -[category] [number of ports] [number of samples] [samples per second] [trigger on/off] [trigger event] [debounce time]
+     As an example, console input:  ADC 4 10000 2000 1 1 100
      results in:
         reading of the first 4 analog input port
         read 10.000 samples to buffer (40.000 samples in total = 80.000 bytes)
         read these samples in a rate of 2.000 per second per port
         Wait for trigger event
-        trigger event 2 = wait for the signal on the trigger port changes from low to high or vice versa.
+        trigger event 1 = wait for the signal on the trigger port changes from low to high.
         trigger when the event is 100 microseconds stable
-     The AD conversion starts on the specified trigger event, after pressing the Enter key
+     The AD conversion starts on the specified trigger event, after the parameter string is send
 
+    TEXT parameters:
+    -[category] [col] [row] [text]
+     example: TEXT 0 1 blabla
+     results in:
+     set cursor to row-column coordinates and print the text 'blabla' 
+     
+    LEVEL parameters: (partly implemented)
+    -[category] [col] [row]
+     example: LEVEL 0 1
+     results in:
+     set cursor to row-col and show level indicators for all analog and trigger input 
+
+     ATT parameters: (partly implemented)
+     -[category] [channel][attenuation]         (adjust the attenuators for all or per channel)
+      example: ATT 0 ADC_11db
+      results in:
+         ADC_11db: sets no attenuation (1V input = ADC reading of 1088)= 0,919mV resolution. Max voltage: 3,76V
+         ADC_6db: sets an attenuation of 1.34 (1V input = ADC reading of 2086)= 0,479mV resolution. Max voltage: 1.962V
+         ADC_2_5db: sets an attenuation of 1.5 (1V input = ADC reading of 2975)= 0,336mV resolution. Max voltage: 1.376V
+         ADC_0db: sets an attenuation of 3.6 (1V input = ADC reading of 3959) = 0,256mV resolution. Max voltage: 1.049V
+
+      DAC. Python composes a signal and sent it to the DAQ's circular buffer to output through the DAC. (yet not implemented, the second core will be used!)
+      -[category] [port] [length] [array of values]
+      example: DAC port_1 255 sinus
+     
      Hardware:
       ESP32 DevkitV1
 
@@ -98,8 +125,10 @@ char TEXT_text[20];
 #include "user_input.h"             // All functions related to user input
 
 #include "cat_ADC.h"                // Do ADC conversion after parsing user input
-#include "cat_LEVEL.h"              // Show level if user wishes
+#include "cat_LEVEL.h"              // Show levels 
 #include "cat_TEXT.h"               // Show user text on display
+#include "cat_ATT.h"                // adjust the attenuators for all or per channel
+#include "cat_DAC.h"                // compose a signal and sent through the DAC
 
 
 void setup()
@@ -143,14 +172,22 @@ void loop()
   if (serial_input())           // result in buf[]
   {
     fill_cat();                 // first parse the category from input
-    if (strcmp(cat, "ADC") == 0)   cat_ADC();
-    if (strcmp(cat, "LEVEL") == 0) cat_LEVEL();    
-    if (strcmp(cat, "TEXT") == 0)  cat_TEXT();   
-    if (LCD) LCD_level_redraw = true;  //rebuild LCD level indicator
+    // read selected analog inputs 
+    if (strcmp(cat, "ADC") == 0)   cat_ADC();     // implemented
+    // show evelop from analog input signals
+    if (strcmp(cat, "LEVEL") == 0) cat_LEVEL();   // partly implemented 
+    // show text on the optional display
+    if (strcmp(cat, "TEXT") == 0)  cat_TEXT();    // implemented
+    // set attenuation for aall or for selected analog input ports
+    if (strcmp(cat, "ATT") == 0)   cat_ATT();     // partly implemented
+    // compose a signal and sent through the DAC
+    if (strcmp(cat, "DAC") == 0)   cat_DAC();     // not yet implemented
+    
+    if (LCD) LCD_level_redraw = true;             // temporary: rebuild legend LCD level indicator
   }
   else 
   {
-    // show input level analog ports and trigger, as long as there is no user input. 
+    // show input level analog ports and trigger, as long there's no user input. 
     if (LCD)
     { 
       LCD_level(11, 0);       // show levels on display starting: col, row 

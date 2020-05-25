@@ -78,10 +78,13 @@ void ADC_parse()
 
 void TEXT_parse()
 {
-  sscanf(buf, "%s %s %d %d", cat, TEXT_text, &TEXT_col, &TEXT_row); // 
+  sscanf(buf, "%s %d %d %s", cat, &TEXT_col, &TEXT_row ,TEXT_text); // 
 }
 
-
+void ATT_parse()
+{
+  //sscanf(buf, "%s %d %d %s", cat, &TEXT_col, &TEXT_row ,TEXT_text); // 
+}
 
 /*
      Prevent that critical parameters get out of range. Maximum values depent on hardware.
