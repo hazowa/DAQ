@@ -26,7 +26,7 @@ void get_samples()
       s_array[ii++] = analogRead(ports[port_index++]) + port_num;  // Save data: sample value stored in bit 0-11, portnumber in bit 12-14
       port_num =  port_num + 0b0001000000000000;              // calculate the next port number for the 4 most significant bits
     } while (port_index < analog_ports);
-    while (micros() < time_target) {};                        // wait till it's time for the next burst
+    while (micros() < time_target) {};                        // wait till it's time for the next burst, about 1.24 microsecond/cycle
 
     port_index = 0;
     port_num = 0b0000000000000000;                            // reset port number

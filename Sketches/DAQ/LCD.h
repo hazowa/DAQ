@@ -144,6 +144,9 @@ void LCD_show_level(int port, int level, int col, int row)
         if (LCD_level_min[i] < LCD_level_max[i])  LCD_level_min[i] = LCD_level_min[i] + LCD_level_decay;
         // after decay-time only subtract when maximum value > 0
         if (LCD_level_max[i] > 0) LCD_level_max[i] = LCD_level_max[i] - LCD_level_decay;
+        // refresh at least every LCD_Level_decay_time the levels on the display 
+        temp_max = 99;
+        temp_min = 99;
       }
     }
   
