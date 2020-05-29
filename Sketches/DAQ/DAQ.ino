@@ -53,7 +53,20 @@
       -[category] [port] [length] [array of values]
       example: DAC port_1 255 sinus
       !yet not implemented, it would be nice to use the second cpu for this
-     
+
+    Specific sensors
+      DHT22: humidity and temperature module/sensor (one or more)
+      -[category] [pinnr] [Humidity|Temperature]
+      example: DHT22 12 Humidity
+      Return:  Humidity reading from DHT22 module connected to pin 12 in percent (int).
+      example: DHT22 12 Temperature
+      Return:  Temperature reading from DHT22 module connected to pin 12 in degrees Celcius (float).
+      !yet not implemented    
+
+      BMP280: pressure an temperature sensor
+      -[category] [i2c address] [Prssure|Temperature] [Resolution] 
+      etc.
+      
      Hardware:
       ESP32 DevkitV1
 
