@@ -1,6 +1,7 @@
 /*  ESP32 based data acquisition device 
  *  From version V.020 a new LCD library (hd44780 library package, https://github.com/duinoWitchery/hd44780)
- *  The second core is for future use (circular buffer, signal level, programmable signal generator)
+ *  The ADC and LCD runs on core 1
+ *  The second core is for future use, a programmable signal generator via the build in DAC
 
    General description buffered analog input
    Purpose:
@@ -50,18 +51,20 @@
       !The attenuation is set in setup()
 
       DAC. Python composes a signal and sent it to the DAQ's circular buffer to output through the DAC. 
-      -[category] [port] [length] [array of values]
-      example: DAC port_1 255 sinus
-      !yet not implemented, it would be nice to use the second cpu for this
+           Runs exclusive on core 0.
+      -[category][number of samples][list of values]
+      example: DAC 256 0 1 5 12 ... (256 values, 8 bit unsigned) 
+               DAC 0 (stops DAC)
+      !yet not completely implemented, starts default with 170Hz sinus on port DAC1 (see ca_DAC.h)
 
-    Specific sensors
+    Specific sensors (!yet not implemented!)
       DHT22: humidity and temperature module/sensor (one or more)
       -[category] [pinnr] [Humidity|Temperature]
       example: DHT22 12 Humidity
       Return:  Humidity reading from DHT22 module connected to pin 12 in percent (int).
       example: DHT22 12 Temperature
       Return:  Temperature reading from DHT22 module connected to pin 12 in degrees Celcius (float).
-      !yet not implemented    
+    
 
       BMP280: pressure an temperature sensor
       -[category] [i2c address] [Prssure|Temperature] [Resolution] 
@@ -70,7 +73,7 @@
      Hardware:
       ESP32 DevkitV1
 
-      Python example: buffered_analog_in_User_input_V0.5.py or later.
+      Python example: buffered_analog_in_User_input_V0.7.py or later.
 */
 
 #include "adc.h"                    // source: https://github.com/espressif/arduino-esp32/blob/master/tools/sdk/include/driver/driver/adc.h
@@ -78,11 +81,16 @@
 #include <hd44780.h>                // main hd44780 header, https://github.com/duinoWitchery/hd44780
 #include <hd44780ioClass/hd44780_I2Cexp.h> // i2c expander i/o class header
 
+bool debug = false;                 // get verbose console output for debugging when 'true'
+bool LCD = true;                    // in case i2c LCD conected, show output
+
+
+// Create a task for the DAC process
+TaskHandle_t TaskDAC;
 
 #define baudrate 230400             // related to the performance and chipset/cable of the connected pc.  
 
-bool debug = false;                 // get verbose console output for debugging when 'true'
-bool LCD = true;                    // in case i2c LCD conected, show output
+
 
 // define i2c pins and LCD address
 #define SCL_pin 22                  // don't forget the pullup resistors for SCL and SDA to 3.3V, see electrical diagram
@@ -105,7 +113,7 @@ int port_max = 8;                   // maximum number of analog ports
 unsigned int s_rate;                // nr of samples/sec
 unsigned int s_nbr;                 // number of samples in total
 
-const int ports[] = {36, 39, 34, 35, 32, 33, 25, 26}; // define portnumbers for the analog ports
+const int ports[] = {36, 39, 34, 35, 32, 33, 14, 26}; // define portnumbers for the analog ports
                                                       // crosstable GPIO port number -> analog input 0 - 7
 // define on board LED port
 const int LED = 2;                  // LED port, off during sampling, blinks during transfering serial data
@@ -123,7 +131,7 @@ char TEXT_text[20];
  * - the include files must be defined before the function call in the main sketch
  * - inside the include files, plave the called function above the calling function
  */
-#include "trigger.h"                 // All functions related to external trigger signal input
+#include "trigger.h"                // All functions related to external trigger signal input
 #include "LCD.h"                    // LCD settings and LCD related functions
 #include "analog_input.h"           // All function relates toe AD conversion
 #include "sample_output.h"          // All functions related to stream buffer to connected computer
@@ -139,6 +147,18 @@ char TEXT_text[20];
 void setup()
 {
   Serial.begin(baudrate);
+
+  xTaskCreatePinnedToCore(
+    cat_DAC_loop,
+    "Workload2",
+    1000,
+    NULL,
+    1,
+    &TaskDAC,
+    0);
+
+
+  
 /*        
  *  Attenuation:
  *  ADC_11db: sets no attenuation (1V input = ADC reading of 1088)= 0,919mV resolution. Max voltage: 3,76V
@@ -167,7 +187,13 @@ void setup()
   }
                                   
   if (LCD) LCD_waiting_for_input(0,0);  // show some text on the LCD display to indicate the status
+
+//  init_DAC()
+//  cat_DAC()
 }
+
+
+
 
 void loop()
 {
@@ -184,7 +210,7 @@ void loop()
     // set attenuation for aall or for selected analog input ports
     if (strcmp(cat, "ATT") == 0)   cat_ATT();     // partly implemented
     // compose a signal and sent through the DAC
-    if (strcmp(cat, "DAC") == 0)   cat_DAC();     // not yet implemented
+//    if (strcmp(cat, "DAC") == 0)   cat_DAC();     // not yet implemented
     
     if (LCD) LCD_level_redraw = true;             // temporary: rebuild legend LCD level indicator
   }

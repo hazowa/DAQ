@@ -13,7 +13,7 @@ int LCD_level_max[9];             // save the previous maximum value of the leve
 int LCD_level_min[9];             // save the previous minimum value of the level measurement per port
 int prev_trigger;                 // remember the previous trigger level
 
-unsigned long LCD_level_decay_time = 1000;// (ms) decrease the level every 'LCD_level_decay_time' with 'LCD_level_decay'
+unsigned long LCD_level_decay_time = 500;// (ms) decrease the level every 'LCD_level_decay_time' with 'LCD_level_decay'
 unsigned long LCD_level_time;     // remember when the last substration took place
 unsigned long LCD_level_decay = 1;// the number to decrease every 'LCD_level_decay_time'
 
@@ -106,6 +106,7 @@ void LCD_initiate()
  */
 void LCD_show_level(int port, int level, int col, int row)
 { 
+  bool overload =false;                           // extra attention when level is clipping
   int temp_max = LCD_level_max[port];             // save te previous value to prevent unnecessary write to LCD
   int temp_min = LCD_level_min[port];
   
@@ -125,6 +126,8 @@ void LCD_show_level(int port, int level, int col, int row)
   } 
   else //port 0-7 is the analoge input
   {
+    // Show when input level is to high(4095)
+    if (level == 4095) overload = true;     // when input signal level is maximum (4095) give a warning
     // map the input value to 16 levels and calculate the envelope 
     // (minimum and maximum value of the converted input signal)
     level = map(level, 0, 4095 , 0 , 15);
@@ -135,7 +138,7 @@ void LCD_show_level(int port, int level, int col, int row)
   // After 'LCD_level_decay_time' substract 'LCD_level_decay' from 'max' and add 'LCD_level_decay' to 'min'
   // The effect is that when the input value decreases the max-value will follow. When the AC component decreases
   // the difference between 'min' and 'max' will decrease.
-    if (millis() > LCD_level_time)
+    if (millis() > LCD_level_time || overload)
     {
       LCD_level_time = millis() + LCD_level_decay_time;
       for (int i = 0; i <8; i++)
@@ -152,10 +155,11 @@ void LCD_show_level(int port, int level, int col, int row)
   
     // use the table 'ElementLowHigh' as a reference to turn on the right characters for the upper and lower segment.
     // show only when changed
+    // When input level is 4095 then show an 'X' to indicate that there is a big chance on distortion caused by clipping
     if (temp_max != LCD_level_max[port])
     {
       lcd.setCursor(col, row);
-      lcd.write(char(ElementLowHigh[LCD_level_max[port]][LCD_level_min[port]][Segment_high])); 
+      if (overload) lcd.write("X"); else lcd.write(char(ElementLowHigh[LCD_level_max[port]][LCD_level_min[port]][Segment_high])); 
     }
  
     if (temp_min != LCD_level_min[port])
