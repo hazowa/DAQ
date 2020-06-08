@@ -1,7 +1,7 @@
 /*  ESP32 based data acquisition device 
  *  From version V.020 a new LCD library (hd44780 library package, https://github.com/duinoWitchery/hd44780)
- *  The ADC and LCD runs on core 1
- *  The second core is for future use, a programmable signal generator via the build in DAC
+ *  The main program, ADC and LCD runs on core 1
+ *  The use of the second core is experimental. At this moment exclusive in use by a programmable signal generator via the build in DAC
 
    General description buffered analog input
    Purpose:
@@ -48,14 +48,16 @@
          ADC_6db: sets an attenuation of 1.34 (1V input = ADC reading of 2086)= 0,479mV resolution. Max voltage: 1.962V
          ADC_2_5db: sets an attenuation of 1.5 (1V input = ADC reading of 2975)= 0,336mV resolution. Max voltage: 1.376V
          ADC_0db: sets an attenuation of 3.6 (1V input = ADC reading of 3959) = 0,256mV resolution. Max voltage: 1.049V
-      !The attenuation is set in setup()
+      !The attenuation is set in setup(), yet not user adjustable
 
       DAC. Python composes a signal and sent it to the DAQ's circular buffer to output through the DAC. 
            Runs exclusive on core 0.
+           Note: DAC and ADC probably make use of shared resources. The speed drops dramatically when using DAC an ADC the same time,
+                 i2c and serial communication cause distorsion.
       -[category][number of samples][list of values]
-      example: DAC 256 0 1 5 12 ... (256 values, 8 bit unsigned) 
-               DAC 0 (stops DAC)
-      !yet not completely implemented, starts default with 170Hz sinus on port DAC1 (see ca_DAC.h)
+      example: DAC 256 0 1 5 12 ... (256 values, 8 bit unsigned) not yet implemented
+               DAC START (starts DAC) implemented, starts a sinewave. Default is off
+      !yet not completely implemented
 
     Specific sensors (!yet not implemented!)
       DHT22: humidity and temperature module/sensor (one or more)
@@ -90,7 +92,9 @@ TaskHandle_t TaskDAC;
 
 #define baudrate 230400             // related to the performance and chipset/cable of the connected pc.  
 
-
+// DA-parameters
+char DAC_startstop[6];              // 
+bool DAC_run = false;               // make true to activate DAC. Be sure to fill the waveform array first!
 
 // define i2c pins and LCD address
 #define SCL_pin 22                  // don't forget the pullup resistors for SCL and SDA to 3.3V, see electrical diagram
@@ -149,13 +153,16 @@ void setup()
   Serial.begin(baudrate);
 
   xTaskCreatePinnedToCore(
-    cat_DAC_loop,
-    "Workload2",
-    1000,
-    NULL,
-    1,
-    &TaskDAC,
-    0);
+    cat_DAC_loop,     // Function name to implement the task
+    "DAC_loop",       // User friendly name of the task
+    1000,             //
+    NULL,             //
+    1,                //  The higher priority the slower serial when DAC runs: prio 7 -> 15sec 
+                      //                                                       prio 4 -> 15sec
+                      //                                                       prio 1 ->  5sec
+                      //                                                       DAC of ->  5sec
+    &TaskDAC,         //
+    0);               //
 
 
   
@@ -210,16 +217,13 @@ void loop()
     // set attenuation for aall or for selected analog input ports
     if (strcmp(cat, "ATT") == 0)   cat_ATT();     // partly implemented
     // compose a signal and sent through the DAC
-//    if (strcmp(cat, "DAC") == 0)   cat_DAC();     // not yet implemented
+    if (strcmp(cat, "DAC") == 0)   cat_DAC();     // partly implemented
     
     if (LCD) LCD_level_redraw = true;             // temporary: rebuild legend LCD level indicator
   }
   else 
   {
     // show input level analog ports and trigger, as long there's no user input. 
-    if (LCD)
-    { 
-      LCD_level(11, 0);       // show levels on display starting: col, row 
-    }
+    if (LCD) LCD_level(11, 0);       // show levels on display starting: col, row 
   }
 }

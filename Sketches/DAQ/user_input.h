@@ -86,6 +86,13 @@ void ATT_parse()
   //sscanf(buf, "%s %d %d %s", cat, &TEXT_col, &TEXT_row ,TEXT_text); // 
 }
 
+void DAC_parse()
+{
+//  Serial.println(buf);
+  sscanf(buf, "%s %s", cat, DAC_startstop); // space delimited
+}
+
+
 /*
      Prevent that critical parameters get out of range. Maximum values depent on hardware.
      Notice 'leaving nnnnnn bytes for local variables' after compiling for available mem space
